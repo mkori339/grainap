@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:grainapp/post_widgets.dart';
 
 class Profile extends StatefulWidget {
   const Profile({super.key});
@@ -12,77 +13,83 @@ class Profile extends StatefulWidget {
 class _ProfileState extends State<Profile> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  User? _currentUser;
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _currentUser = _auth.currentUser;
-  }
+  User? get _currentUser => _auth.currentUser;
 
-  Future<void> _showEditProfileDialog(BuildContext context, Map<String, dynamic> userData) async {
-    final TextEditingController nameController = TextEditingController(text: userData['name']);
-    final TextEditingController emailController = TextEditingController(text: userData['email']);
+  Future<void> _showEditProfileDialog(Map<String, dynamic> userData) async {
+    final nameController = TextEditingController(text: (userData['name'] ?? '').toString());
+    final emailController = TextEditingController(text: (userData['email'] ?? '').toString());
 
-    return showDialog<void>(
+    await showDialog<void>(
       context: context,
-      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Edit Profile'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Name'),
+          title: const Text('Edit profile'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Name',
+                  prefixIcon: Icon(Icons.person_outline_rounded),
                 ),
-                TextFormField(
-                  controller: emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.mail_outline_rounded),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           actions: <Widget>[
             TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
             ),
-            TextButton(
-              child: const Text('Save'),
+            FilledButton(
               onPressed: () async {
+                Navigator.of(dialogContext).pop();
                 setState(() {
                   _isLoading = true;
                 });
+
                 try {
-                  // Update Firebase Auth user details
-                  await _currentUser?.updateDisplayName(nameController.text);
-                  await _currentUser?.updateEmail(emailController.text);
+                  await _currentUser?.updateDisplayName(nameController.text.trim());
+                  if ((_currentUser?.email ?? '') != emailController.text.trim()) {
+                    await _currentUser?.updateEmail(emailController.text.trim());
+                  }
+                  await _firestore.collection('users').doc(_currentUser!.uid).set({
+                    'name': nameController.text.trim(),
+                    'email': emailController.text.trim(),
+                  }, SetOptions(merge: true));
 
-                  // Update Firestore document
-                  await _firestore.collection('users').doc(_currentUser!.uid).update({
-                    'name': nameController.text,
-                    'email': emailController.text,
-                  });
-
-                  Navigator.of(dialogContext).pop();
+                  if (!mounted) {
+                    return;
+                  }
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated successfully!')),
+                    const SnackBar(content: Text('Profile updated.')),
                   );
-                } on FirebaseAuthException catch (e) {
+                } on FirebaseAuthException catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error updating profile: ${e.message}')),
+                    SnackBar(content: Text(error.message ?? 'Unable to update profile.')),
                   );
                 } finally {
-                  setState(() {
-                    _isLoading = false;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                  }
                 }
               },
+              child: const Text('Save'),
             ),
           ],
         );
@@ -90,71 +97,89 @@ class _ProfileState extends State<Profile> {
     );
   }
 
-  Future<void> _showDeleteConfirmationDialog(BuildContext context) async {
-    final TextEditingController passwordController = TextEditingController();
+  Future<void> _sendVerificationEmail() async {
+    try {
+      await _currentUser?.sendEmailVerification();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Verification email sent to ${_currentUser?.email}.')),
+      );
+    } on FirebaseAuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Unable to send email.')),
+      );
+    }
+  }
 
-    return showDialog<void>(
+  Future<void> _showDeleteDialog() async {
+    final passwordController = TextEditingController();
+
+    await showDialog<void>(
       context: context,
-      barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Delete Account'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                const Text('This is a permanent action. Please enter your password to confirm.'),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Password'),
+          title: const Text('Delete account'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Text('This action is permanent. Enter your password to continue.'),
+              const SizedBox(height: 14),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: Icon(Icons.lock_outline_rounded),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           actions: <Widget>[
             TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
               child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            FilledButton(
               onPressed: () async {
+                Navigator.of(dialogContext).pop();
                 setState(() {
                   _isLoading = true;
                 });
+
                 try {
-                  AuthCredential credential = EmailAuthProvider.credential(
+                  final credential = EmailAuthProvider.credential(
                     email: _currentUser!.email!,
                     password: passwordController.text,
                   );
                   await _currentUser!.reauthenticateWithCredential(credential);
-
-                  // Delete Firestore document first
                   await _firestore.collection('users').doc(_currentUser!.uid).delete();
-
-                  // Then delete the user from Firebase Auth
                   await _currentUser!.delete();
 
-                  Navigator.of(dialogContext).pop();
+                  if (!mounted) {
+                    return;
+                  }
+                  Navigator.of(context).pop();
+                } on FirebaseAuthException catch (error) {
+                  if (!mounted) {
+                    return;
+                  }
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Account deleted successfully!')),
-                  );
-                  // Navigate to a login or welcome screen after deletion
-                  // Example: Navigator.of(context).pushReplacementNamed('/login');
-                } on FirebaseAuthException catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error deleting account: ${e.message}')),
+                    SnackBar(content: Text(error.message ?? 'Unable to delete account.')),
                   );
                 } finally {
-                  setState(() {
-                    _isLoading = false;
-                  });
+                  if (mounted) {
+                    setState(() {
+                      _isLoading = false;
+                    });
+                  }
                 }
               },
+              child: const Text('Delete'),
             ),
           ],
         );
@@ -164,187 +189,151 @@ class _ProfileState extends State<Profile> {
 
   @override
   Widget build(BuildContext context) {
-    if (_currentUser == null) {
-      return const Center(child: Text('User not signed in.'));
+    final user = _currentUser;
+    if (user == null) {
+      return const Scaffold(
+        body: Center(child: Text('User not signed in.')),
+      );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-        backgroundColor: Colors.blueGrey.shade900,
-        foregroundColor: Colors.white,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : StreamBuilder<DocumentSnapshot>(
-              stream: _firestore.collection('users').doc(_currentUser!.uid).snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData || !snapshot.data!.exists) {
-                  return const Center(child: Text('No user data found.'));
-                }
+      appBar: AppBar(title: const Text('Profile')),
+      body: MarketBackground(
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: _firestore.collection('users').doc(user.uid).snapshots(),
+                  builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                var userData = snapshot.data!.data() as Map<String, dynamic>;
+                    final data = snapshot.data?.data() ?? <String, dynamic>{};
+                    final verified = user.emailVerified;
 
-                return SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.blueGrey.shade600,
-                          child: Icon(Icons.person, size: 60, color: Colors.white),
-                        ),
-                        const SizedBox(height: 20),
-                        Card(
-                          elevation: 4,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(20.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                _buildDetailRow(Icons.person, 'Name', userData['name']),
-                                const Divider(),
-                                _buildDetailRow(Icons.email, 'Email', userData['email']),
-                                const Divider(),
-                                _buildPasswordRow(),
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: <Widget>[
+                        MarketPanel(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Row(
+                                children: <Widget>[
+                                  CircleAvatar(
+                                    radius: 34,
+                                    backgroundColor: Colors.white.withOpacity(0.08),
+                                    child: const Icon(Icons.person_outline_rounded, size: 36),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: <Widget>[
+                                        Text(
+                                          (data['name'] ?? user.displayName ?? 'Trader').toString(),
+                                          style: const TextStyle(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          (data['email'] ?? user.email ?? '').toString(),
+                                          style: TextStyle(color: Colors.white.withOpacity(0.68)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: verified
+                                          ? Colors.green.withOpacity(0.14)
+                                          : Colors.orange.withOpacity(0.14),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        Icon(
+                                          verified
+                                              ? Icons.verified_outlined
+                                              : Icons.mark_email_unread_outlined,
+                                          size: 16,
+                                          color: verified ? Colors.greenAccent : Colors.orangeAccent,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          verified ? 'Verified' : 'Pending',
+                                          style: TextStyle(
+                                            color: verified ? Colors.greenAccent : Colors.orangeAccent,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 20),
+                              Wrap(
+                                spacing: 10,
+                                runSpacing: 10,
+                                children: <Widget>[
+                                  InfoPill(
+                                    icon: verified ? Icons.verified_outlined : Icons.mark_email_unread_outlined,
+                                    label: verified ? 'Email verified' : 'Verification optional',
+                                  ),
+                                  if (!verified)
+                                    InfoPill(
+                                      icon: Icons.send_outlined,
+                                      label: 'Send verification link',
+                                    ),
+                                ],
+                              ),
+                              if (!verified) ...<Widget>[
+                                const SizedBox(height: 16),
+                                OutlinedButton.icon(
+                                  onPressed: _sendVerificationEmail,
+                                  icon: const Icon(Icons.mail_outline_rounded),
+                                  label: const Text('Send verification email'),
+                                ),
                               ],
-                            ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 30),
-                        ElevatedButton.icon(
-                          onPressed: () => _showEditProfileDialog(context, userData),
-                          icon: const Icon(Icons.edit),
-                          label: const Text('Edit Profile'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blueGrey.shade700,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: () => _showDeleteConfirmationDialog(context),
-                          icon: const Icon(Icons.delete),
-                          label: const Text('Delete Account'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 50),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        const SizedBox(height: 16),
+                        MarketPanel(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              const SectionHeader(
+                                icon: Icons.manage_accounts_outlined,
+                                title: 'Account actions',
+                                subtitle: 'Manage your identity and security settings.',
+                              ),
+                              const SizedBox(height: 18),
+                              FilledButton.icon(
+                                onPressed: () => _showEditProfileDialog(data),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Edit profile'),
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                onPressed: _showDeleteDialog,
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                label: const Text('Delete account'),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                );
-              },
-            ),
-      bottomNavigationBar: BottomAppBar(
-        color: Colors.blueGrey.shade900,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Text(
-            '© 2025 - All Rights Reserved',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-            ),
-          ),
+                    );
+                  },
+                ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(icon, color: Colors.blueGrey.shade700, size: 28),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPasswordRow() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        children: [
-          Icon(Icons.lock, color: Colors.blueGrey.shade700, size: 28),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Password',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '••••••••',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.visibility_off, color: Colors.blueGrey),
-            onPressed: () {
-              // Note: The password cannot be directly read from Firebase for security reasons.
-              // This button would typically lead to a password change screen.
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Password cannot be viewed. Please use the "Edit" button to change it.')),
-              );
-            },
-          ),
-        ],
       ),
     );
   }

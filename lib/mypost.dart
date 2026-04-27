@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:grainapp/app_theme.dart';
+import 'package:grainapp/market_data.dart';
+import 'package:grainapp/post_widgets.dart';
 import 'package:grainapp/posts.dart';
 import 'package:grainapp/signupFirebase.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
 class MyPost extends StatefulWidget {
   const MyPost({super.key});
@@ -13,393 +14,425 @@ class MyPost extends StatefulWidget {
 }
 
 class _MyPostState extends State<MyPost> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _quantityController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
+  final TextEditingController _explainController = TextEditingController();
+  final TextEditingController _streetController = TextEditingController();
+  final TextEditingController _customProductController = TextEditingController();
+
+  String _postType = 'sell';
+  String? _selectedProduct;
+  String? _selectedRegion;
+  String? _selectedDistrict;
+  bool _isSubmitting = false;
+
   @override
-  void initState() {
-    loadproduct();
-    super.initState();
+  void dispose() {
+    _quantityController.dispose();
+    _phoneController.dispose();
+    _explainController.dispose();
+    _streetController.dispose();
+    _customProductController.dispose();
+    super.dispose();
   }
 
-  String? selectedProduct;
-  String? selectedRegion;
-  String? selectedDistrict;
-  late String productname;
-  late String districtname;
-  late String regionname;
-  List<String> products = [];
-  List<String> districtopt = [];
-  List district = [
-    ["ARUMERU", "ARUSHA", "ARUSHA JIJI", "KARATU", "LONGIDO", "MONDULI", "NGORONGORO"],
-    ["ILALA", "KIGAMBONI", "KINONDONI", "TEMEKE", "UBUNGO"],
-    ["BAHI", "CHAMWINO", "CHAMWINO DC", "CHEMBA", "DODOMA", "KONDOA", "KONGWA", "MPWAPWA"],
-    ["BUKOMBE", "CHATO", "GEITA", "MBOGWE", "NYANG'WALE"],
-    ["IRINGA", "KILOLO", "MUFINDI", "MAFINGA"],
-    ["BIHARAMULO", "BUKOBA", "KARAGWE", "KYERWA", "MISSENYI", "MULEBA", "NGARA"],
-    ["MLELE", "MPANDA", "TANGANYIKA"],
-    ["BUHIGWE", "KAKONKO", "KASULU", "KIBONDO", "KIGOMA", "UVINZA"],
-    ["HAI", "MOSHI", "MWANGA", "ROMBO", "SAME", "SIHA"],
-    ["KILWA", "LINDI", "LIWALE", "NACHINGWEA", "RUANGWA"],
-    ["BABATI", "HANANG", "KITETO", "MBULU", "SIMANJIRO"],
-    ["BUNDA", "BUTIAMA", "MUSOMA", "RORYA", "SERENGETI", "TARIME"],
-    ["CHUNYA", "KYELA", "MBARALI", "MBEYA", "RUNGWE", "TUKUYU"],
-    ["GAIRO", "KILOMBERO", "KILOSA", "MALINYI", "MOROGORO", "MVOMERO", "ULANGA"],
-    ["MASASI", "MTWARA", "NANYUMBU", "NEWALA", "TANDAHIMBA"],
-    ["ILEMELA", "KWIMBA", "MAGU", "MISUNGWI", "NYAMAGANA", "SENGEREMA", "UKEREWE"],
-    ["LUDEWA", "MAKETE", "NJOMBE", "WANG'ING'OMBE"],
-    ["BAGAMOYO", "KIBAHA", "KIBITI", "KISARAWE", "MAFIA", "MKURANGA", "RUFIJI"],
-    ["KALAMBO", "NKASI", "SUMBAWANGA"],
-    ["MBINGA", "NAMTUMBO", "NYASA", "SONGEA", "TUNDURU"],
-    ["KAHAMA", "KISHAPU", "SHINYANGA"],
-    ["BARIADI", "BUSEGA", "ITILIMA", "MASWA", "MEATU"],
-    ["IKUNGI", "IRAMBA", "MANYONI", "MKALAMA", "SINGIDA"],
-    ["ILEJE", "MBOZI", "MOMBA", "SONGWE"],
-    ["IGUNGA", "KALIUA", "NZEGA", "SIKONGE", "TABORA", "URAMBO", "UYUI"],
-    ["HANDENI", "KILINDI", "KOROGWE", "LUSHOTO", "MKINGA", "MUHEZA", "PANGANI", "TANGA"],
-    ["PEMBA KASKAZINI", "PEMBA KUSINI", "UNGUJA MJINI MAGHRIB", "UNGUJA KASKAZINI", "UNGUJA KUSINI"]
-  ];
-  List regions = [
-    "ARUSHA",
-    "DAR ES SALAAM",
-    "DODOMA",
-    "GEITA",
-    "IRINGA",
-    "KAGERA",
-    "KATAVI",
-    "KIGOMA",
-    "KILIMANJARO",
-    "LINDI",
-    "MANYARA",
-    "MARA",
-    "MBEYA",
-    "MOROGORO",
-    "MTWARA",
-    "MWANZA",
-    "NJOMBE",
-    "PWANI",
-    "RUKWA",
-    "RUVUMA",
-    "SHINYANGA",
-    "SIMIYU",
-    "SINGIDA",
-    "SONGWE",
-    "TABORA",
-    "TANGA",
-    "ZANZIBAR"
-  ];
+  Stream<List<String>> _productStream() {
+    return FirebaseFirestore.instance.collection('product').snapshots().map((snapshot) {
+      final products = <String>{};
+      for (final doc in snapshot.docs) {
+        for (final value in doc.data().values) {
+          final item = value.toString().trim();
+          if (item.isNotEmpty) {
+            products.add(item);
+          }
+        }
+      }
+      final list = products.toList()..sort();
+      return list;
+    });
+  }
 
-  TextEditingController quantityController = TextEditingController();
-  TextEditingController phoneController = TextEditingController();
-  TextEditingController explainController = TextEditingController();
-  TextEditingController mtaaController = TextEditingController();
-
-  File? _profileImage;
-  var filename;
-
-  Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
-
-    if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-        filename = pickedFile.name;
-      });
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
     }
+
+    final selectedProduct = _selectedProduct == 'Other'
+        ? _customProductController.text.trim()
+        : _selectedProduct?.trim();
+
+    if (selectedProduct == null || selectedProduct.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose or enter a product first.')),
+      );
+      return;
+    }
+
+    if (_selectedRegion == null || _selectedDistrict == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Choose your region and district.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    final result = await userPost(
+      street: _streetController.text.trim(),
+      quantity: _quantityController.text.trim(),
+      phone: _phoneController.text.trim(),
+      explanation: _explainController.text.trim(),
+      productName: selectedProduct,
+      region: _selectedRegion!,
+      districtName: _selectedDistrict!,
+      postType: _postType,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = false;
+    });
+
+    if (result == 0) {
+      _formKey.currentState?.reset();
+      _quantityController.clear();
+      _phoneController.clear();
+      _explainController.clear();
+      _streetController.clear();
+      _customProductController.clear();
+      setState(() {
+        _selectedProduct = null;
+        _selectedRegion = null;
+        _selectedDistrict = null;
+        _postType = 'sell';
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _postType == 'buy'
+                ? 'Buy request posted successfully.'
+                : 'Sell post published successfully.',
+          ),
+        ),
+      );
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const ProductCard()),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Unable to save the post. Try again.')),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final districts = _selectedRegion == null ? const <String>[] : districtsForRegion(_selectedRegion!);
+
     return Scaffold(
-      backgroundColor: Colors.black,
       appBar: AppBar(
-        iconTheme: IconThemeData(color: Colors.white),
-        backgroundColor: Colors.blueGrey.shade800.withOpacity(0.9),
-        title: const Text(
-          'Product Form',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        elevation: 0,
+        title: const Text('Create Post'),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.black, Colors.blueGrey.shade800],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DropdownButtonFormField<String>(
-                  value: selectedProduct,
-                  items: products
-                      .map((product) => DropdownMenuItem(
-                            value: product,
-                            child: Text(
-                              product,
-                              style: TextStyle(color: Colors.white),
+      body: MarketBackground(
+        child: SafeArea(
+          child: StreamBuilder<List<String>>(
+            stream: _productStream(),
+            builder: (BuildContext context, AsyncSnapshot<List<String>> snapshot) {
+              final productItems = <String>[...snapshot.data ?? const <String>[]];
+              if (!productItems.contains('Other')) {
+                productItems.add('Other');
+              }
+
+              return LayoutBuilder(
+                builder: (BuildContext context, BoxConstraints constraints) {
+                  final isWide = constraints.maxWidth >= 900;
+                  final fieldWidth = isWide ? (constraints.maxWidth - 52) / 2 : constraints.maxWidth;
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: <Widget>[
+                        TweenAnimationBuilder<double>(
+                          duration: const Duration(milliseconds: 500),
+                          tween: Tween<double>(begin: 0.96, end: 1),
+                          builder: (BuildContext context, double value, Widget? child) {
+                            return Transform.scale(
+                              scale: value,
+                              child: Opacity(opacity: value.clamp(0, 1), child: child),
+                            );
+                          },
+                          child: MarketPanel(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: <Widget>[
+                                const SectionHeader(
+                                  icon: Icons.add_business_rounded,
+                                  title: 'Quick listing',
+                                  subtitle: 'Post a buy request or a sell offer without images.',
+                                ),
+                                const SizedBox(height: 18),
+                                SegmentedButton<String>(
+                                  style: SegmentedButton.styleFrom(
+                                    backgroundColor: AppColors.panelSoft,
+                                    foregroundColor: Colors.white,
+                                    selectedBackgroundColor: AppColors.accent.withOpacity(0.2),
+                                    selectedForegroundColor: Colors.white,
+                                  ),
+                                  segments: const <ButtonSegment<String>>[
+                                    ButtonSegment<String>(
+                                      value: 'sell',
+                                      icon: Icon(Icons.sell_outlined),
+                                      label: Text('Sell'),
+                                    ),
+                                    ButtonSegment<String>(
+                                      value: 'buy',
+                                      icon: Icon(Icons.shopping_bag_outlined),
+                                      label: Text('Buy'),
+                                    ),
+                                  ],
+                                  selected: <String>{_postType},
+                                  onSelectionChanged: (Set<String> values) {
+                                    setState(() {
+                                      _postType = values.first;
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 22),
+                                Form(
+                                  key: _formKey,
+                                  child: Wrap(
+                                    spacing: 20,
+                                    runSpacing: 20,
+                                    children: <Widget>[
+                                      SizedBox(
+                                        width: fieldWidth,
+                                        child: DropdownButtonFormField<String>(
+                                          value: productItems.contains(_selectedProduct) ? _selectedProduct : null,
+                                          dropdownColor: AppColors.panel,
+                                          items: productItems
+                                              .map(
+                                                (String product) => DropdownMenuItem<String>(
+                                                  value: product,
+                                                  child: Text(product),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (String? value) {
+                                            setState(() {
+                                              _selectedProduct = value;
+                                            });
+                                          },
+                                          decoration: const InputDecoration(
+                                            labelText: 'Product',
+                                            prefixIcon: Icon(Icons.grass_rounded),
+                                          ),
+                                          validator: (_) {
+                                            if (_selectedProduct == null) {
+                                              return 'Choose a product.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                      if (_selectedProduct == 'Other')
+                                        SizedBox(
+                                          width: fieldWidth,
+                                          child: TextFormField(
+                                            controller: _customProductController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Custom product',
+                                              prefixIcon: Icon(Icons.edit_rounded),
+                                            ),
+                                            validator: (String? value) {
+                                              if (_selectedProduct == 'Other' &&
+                                                  (value == null || value.trim().isEmpty)) {
+                                                return 'Enter the product name.';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                        ),
+                                      SizedBox(
+                                        width: fieldWidth,
+                                        child: TextFormField(
+                                          controller: _quantityController,
+                                          keyboardType: TextInputType.number,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Quantity (kg)',
+                                            prefixIcon: Icon(Icons.scale_outlined),
+                                          ),
+                                          validator: (String? value) {
+                                            if (value == null || value.trim().isEmpty) {
+                                              return 'Enter quantity.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: fieldWidth,
+                                        child: TextFormField(
+                                          controller: _phoneController,
+                                          keyboardType: TextInputType.phone,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Phone / WhatsApp',
+                                            prefixIcon: Icon(Icons.call_rounded),
+                                          ),
+                                          validator: (String? value) {
+                                            if (value == null || value.trim().isEmpty) {
+                                              return 'Enter a phone number.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: fieldWidth,
+                                        child: DropdownButtonFormField<String>(
+                                          value: _selectedRegion,
+                                          dropdownColor: AppColors.panel,
+                                          items: marketRegions
+                                              .map(
+                                                (String region) => DropdownMenuItem<String>(
+                                                  value: region,
+                                                  child: Text(region),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (String? value) {
+                                            setState(() {
+                                              _selectedRegion = value;
+                                              _selectedDistrict = null;
+                                            });
+                                          },
+                                          decoration: const InputDecoration(
+                                            labelText: 'Region',
+                                            prefixIcon: Icon(Icons.public_rounded),
+                                          ),
+                                          validator: (String? value) {
+                                            if (value == null || value.isEmpty) {
+                                              return 'Choose a region.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: fieldWidth,
+                                        child: DropdownButtonFormField<String>(
+                                          value: districts.contains(_selectedDistrict) ? _selectedDistrict : null,
+                                          dropdownColor: AppColors.panel,
+                                          items: districts
+                                              .map(
+                                                (String district) => DropdownMenuItem<String>(
+                                                  value: district,
+                                                  child: Text(district),
+                                                ),
+                                              )
+                                              .toList(),
+                                          onChanged: (String? value) {
+                                            setState(() {
+                                              _selectedDistrict = value;
+                                            });
+                                          },
+                                          decoration: const InputDecoration(
+                                            labelText: 'District',
+                                            prefixIcon: Icon(Icons.location_city_rounded),
+                                          ),
+                                          validator: (String? value) {
+                                            if (value == null || value.isEmpty) {
+                                              return 'Choose a district.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: fieldWidth,
+                                        child: TextFormField(
+                                          controller: _streetController,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Street / Mtaa',
+                                            prefixIcon: Icon(Icons.home_work_outlined),
+                                          ),
+                                          validator: (String? value) {
+                                            if (value == null || value.trim().isEmpty) {
+                                              return 'Enter your street.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: TextFormField(
+                                          controller: _explainController,
+                                          maxLines: 5,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Description',
+                                            alignLabelWithHint: true,
+                                            prefixIcon: Icon(Icons.notes_rounded),
+                                          ),
+                                          validator: (String? value) {
+                                            if (value == null || value.trim().isEmpty) {
+                                              return 'Add a short description.';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 12,
+                                  children: <Widget>[
+                                    FilledButton.icon(
+                                      onPressed: _isSubmitting ? null : _submit,
+                                      icon: _isSubmitting
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            )
+                                          : const Icon(Icons.rocket_launch_outlined),
+                                      label: Text(_isSubmitting ? 'Posting...' : 'Publish'),
+                                    ),
+                                    OutlinedButton.icon(
+                                      onPressed: _isSubmitting
+                                          ? null
+                                          : () {
+                                              Navigator.of(context).pop();
+                                            },
+                                      icon: const Icon(Icons.arrow_back_rounded),
+                                      label: const Text('Back'),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    selectedProduct = value;
-                    productname = selectedProduct!;
-                  }),
-                  decoration: InputDecoration(
-                    labelText: 'Product Name',
-                    labelStyle: TextStyle(color: Colors.white),
-                    prefixIcon: Icon(Icons.production_quantity_limits, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                  dropdownColor: Colors.blueGrey.shade800,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: quantityController,
-                  keyboardType: TextInputType.number,
-                  style: TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Quantity (kg)',
-                    labelStyle: TextStyle(color: Colors.white),
-                    prefixIcon: Icon(Icons.format_list_numbered, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 1),
-                    height: 50,
-                    width: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white),
-                      gradient: LinearGradient(
-                        colors: [Colors.blueGrey.shade900, Colors.black],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                    child: Center(
-                      child: Icon(Icons.camera_alt, color: Colors.white),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (_profileImage != null)
-                  Container(
-                    margin: EdgeInsets.only(bottom: 16),
-                    child: Image.file(
-                      _profileImage!,
-                      height: 100,
-                      width: 100,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                TextField(
-                  controller: explainController,
-                  style: const TextStyle(color: Colors.white),
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  decoration: InputDecoration(
-                    labelText: 'Explanation',
-                    labelStyle: const TextStyle(color: Colors.white),
-                    prefixIcon: const Icon(Icons.copy, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 80),
-                DropdownButtonFormField<String>(
-                  value: selectedRegion,
-                  items: regions.map((region) {
-                    return DropdownMenuItem<String>(
-                      value: region,
-                      child: Text(
-                        region,
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (value) => setState(() {
-                    selectedRegion = null;
-                    selectedDistrict = null;
-                    selectedRegion = value;
-                    districtopt = district[regions.indexOf(value)];
-                    regionname = selectedRegion!;
-                  }),
-                  decoration: InputDecoration(
-                    labelText: 'Region',
-                    labelStyle: TextStyle(color: Colors.white),
-                    prefixIcon: Icon(Icons.location_on, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                  dropdownColor: Colors.blueGrey.shade600,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedDistrict,
-                  items: districtopt
-                      .map((district) => DropdownMenuItem(
-                            value: district,
-                            child: Text(
-                              district,
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ))
-                      .toList(),
-                  onChanged: (value) => setState(() {
-                    selectedDistrict = value;
-                    districtname = selectedDistrict!;
-                  }),
-                  decoration: InputDecoration(
-                    labelText: 'District',
-                    labelStyle: TextStyle(color: Colors.white),
-                    prefixIcon: Icon(Icons.map, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                  dropdownColor: Colors.blueGrey.shade800,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: phoneController,
-                  keyboardType: TextInputType.phone,
-                  style: TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Phone',
-                    labelStyle: TextStyle(color: Colors.white),
-                    prefixIcon: Icon(Icons.phone, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: mtaaController,
-                  style: TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Mtaa',
-                    labelStyle: TextStyle(color: Colors.white),
-                    prefixIcon: Icon(Icons.home, color: Colors.white),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.blueGrey.shade400),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Center(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      String mtaa = mtaaController.text;
-                      String quantyty = quantityController.text;
-                      String phone = phoneController.text;
-                      String explain = explainController.text;
-                      int post = await userPost(mtaa, quantyty, phone, explain, productname, regionname, districtname, _profileImage?.path ?? "path");
-                      if (post == 0) {
-                        setState(() {
-                          phoneController.clear();
-                          mtaaController.clear();
-                          quantityController.clear();
-                          explainController.clear();
-                          selectedProduct = null;
-                          selectedRegion = null;
-                          selectedDistrict = null;
-                          _profileImage = null;
-                        });
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ProductCard(),
                           ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey.shade800,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+                        ),
+                      ],
                     ),
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    label: const Text('Submit', style: TextStyle(color: Colors.white)),
-                  ),
-                ),
-              ],
-            ),
+                  );
+                },
+              );
+            },
           ),
         ),
       ),
     );
   }
-
-  void loadproduct() {
-    Stream<QuerySnapshot> getUsers() {
-      return FirebaseFirestore.instance.collection('product').snapshots();
-    }
-
-    getUsers().listen((QuerySnapshot snapshot) {
-      Map<String, dynamic>? data;
-      int attributesLength = 0;
-      for (var doc in snapshot.docs) {
-        data = doc.data() as Map<String, dynamic>;
-        attributesLength = data.values.length;
-      }
-      for (int i = 1; i <= attributesLength; i++) {
-        products.add(data?['$i']);
-      }
-      setState(() {});
-    });
-  }
 }
-
