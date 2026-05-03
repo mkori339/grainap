@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:grainapp/app_theme.dart';
+import 'package:grainapp/app_support.dart';
 import 'package:grainapp/contact_actions.dart';
 import 'package:grainapp/market_post.dart';
 
@@ -12,19 +13,54 @@ class MarketBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
+    final palette = context.appPalette;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: <Color>[
-            AppColors.background,
-            AppColors.backgroundSoft,
-            AppColors.background,
+            palette.background,
+            palette.backgroundSoft,
+            palette.background,
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: child,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          Positioned(
+            top: -120,
+            right: -80,
+            child: IgnorePointer(
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: palette.accent.withValues(alpha: 0.08),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: -120,
+            bottom: -160,
+            child: IgnorePointer(
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: palette.highlight.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
     );
   }
 }
@@ -41,14 +77,77 @@ class MarketPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final borderColor =
+        Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.06);
+
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.panel.withOpacity(0.92),
+        gradient: LinearGradient(
+          colors: <Color>[
+            palette.panel.withValues(alpha: 0.97),
+            palette.panelSoft.withValues(alpha: 0.92),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: borderColor),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha:
+                  Theme.of(context).brightness == Brightness.dark ? 0.18 : 0.08,
+            ),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
       ),
       child: child,
+    );
+  }
+}
+
+class MarketPageTitle extends StatelessWidget {
+  const MarketPageTitle({
+    super.key,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          sanitizeUiText(title),
+          style: const TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          sanitizeUiText(subtitle),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 12,
+            color: onSurface.withValues(alpha: 0.68),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -69,41 +168,54 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Container(
-          width: 44,
-          height: 44,
+          width: 46,
+          height: 46,
           decoration: BoxDecoration(
-            color: AppColors.accent.withOpacity(0.14),
+            color: palette.accent.withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(14),
-          ),
-          child: const Icon(Icons.circle, color: Colors.transparent),
-        ),
-        Transform.translate(
-          offset: const Offset(-44, 0),
-          child: Icon(icon, color: AppColors.accentSoft),
-        ),
-        Expanded(
-          child: Transform.translate(
-            offset: const Offset(-22, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    style: TextStyle(color: Colors.white.withOpacity(0.62)),
-                  ),
-              ],
+            border: Border.all(
+              color: palette.accent.withValues(alpha: 0.18),
             ),
           ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: palette.accentSoft, size: 22),
         ),
-        if (trailing != null) trailing!,
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                sanitizeUiText(title),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (subtitle != null) ...<Widget>[
+                const SizedBox(height: 4),
+                Text(
+                  sanitizeUiText(subtitle!),
+                  style: TextStyle(
+                    color: onSurface.withValues(alpha: 0.62),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...<Widget>[
+          const SizedBox(width: 12),
+          trailing!,
+        ],
       ],
     );
   }
@@ -125,21 +237,33 @@ class EmptyStateCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return MarketPanel(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          Icon(icon, size: 52, color: AppColors.accentSoft),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: palette.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, size: 34, color: palette.accentSoft),
+          ),
           const SizedBox(height: 16),
           Text(
-            title,
+            sanitizeUiText(title),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            subtitle,
-            style: TextStyle(color: Colors.white.withOpacity(0.66)),
+            sanitizeUiText(subtitle),
+            style: TextStyle(color: onSurface.withValues(alpha: 0.66)),
             textAlign: TextAlign.center,
           ),
           if (action != null) ...<Widget>[
@@ -159,16 +283,17 @@ class TradeTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final isBuy = postType.toLowerCase() == 'buy';
-    final color = isBuy ? AppColors.highlight : AppColors.accent;
+    final color = isBuy ? palette.highlight : palette.accent;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 280),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.14),
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.22)),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -180,7 +305,7 @@ class TradeTypeBadge extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            isBuy ? 'Buy' : 'Sell',
+            isBuy ? bi('Nunua', 'Buy') : bi('Uza', 'Sell'),
             style: TextStyle(color: color, fontWeight: FontWeight.w700),
           ),
         ],
@@ -203,31 +328,43 @@ class InfoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 12,
-        vertical: compact ? 8 : 10,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          Icon(icon, size: compact ? 15 : 17, color: AppColors.accentSoft),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.92),
-                fontSize: compact ? 12 : 13,
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: compact ? 170 : 280),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 10 : 12,
+          vertical: compact ? 8 : 10,
+        ),
+        decoration: BoxDecoration(
+          color: onSurface.withValues(
+            alpha:
+                Theme.of(context).brightness == Brightness.dark ? 0.05 : 0.04,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: onSurface.withValues(alpha: 0.06)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(icon, size: compact ? 15 : 17, color: palette.accentSoft),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                sanitizeUiText(label),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: onSurface.withValues(alpha: 0.92),
+                  fontSize: compact ? 12 : 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -256,12 +393,13 @@ class ContactActionRow extends StatelessWidget {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(errorMessage)),
+      SnackBar(content: Text(sanitizeUiText(errorMessage))),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
     final iconSize = compact ? 16.0 : 18.0;
 
     return Wrap(
@@ -272,14 +410,14 @@ class ContactActionRow extends StatelessWidget {
           onPressed: () {
             _runAction(
               context,
-              () => openWhatsApp(phone, message: message),
-              'Unable to open WhatsApp for this phone number.',
+              () => openWhatsApp(phone, message: sanitizeUiText(message)),
+              'Imeshindikana kufungua WhatsApp / Unable to open WhatsApp.',
             );
           },
           icon: FaIcon(
             FontAwesomeIcons.whatsapp,
             size: iconSize,
-            color: AppColors.success,
+            color: palette.success,
           ),
           label: compact ? const SizedBox.shrink() : const Text('WhatsApp'),
         ),
@@ -288,10 +426,11 @@ class ContactActionRow extends StatelessWidget {
             _runAction(
               context,
               () => openDialer(phone),
-              'Unable to open the phone dialer.',
+              'Imeshindikana kufungua simu / Unable to open the phone dialer.',
             );
           },
-          icon: Icon(Icons.call_rounded, size: iconSize, color: AppColors.accentSoft),
+          icon: Icon(Icons.call_rounded,
+              size: iconSize, color: palette.accentSoft),
           label: compact ? const SizedBox.shrink() : const Text('Call'),
         ),
       ],
@@ -305,6 +444,7 @@ class MarketPostCard extends StatelessWidget {
     required this.post,
     this.onTap,
     this.trailing,
+    this.footer,
     this.showContactActions = true,
     this.showPhone = true,
   });
@@ -312,102 +452,111 @@ class MarketPostCard extends StatelessWidget {
   final MarketPost post;
   final VoidCallback? onTap;
   final Widget? trailing;
+  final Widget? footer;
   final bool showContactActions;
   final bool showPhone;
 
   String _formatCreatedAt() {
     final dateTime = post.createdAt?.toDate();
     if (dateTime == null) {
-      return 'Just now';
+      return bi('Sasa hivi', 'Just now');
     }
     return DateFormat('dd MMM yyyy • HH:mm').format(dateTime);
   }
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 420),
-      tween: Tween<double>(begin: 0.97, end: 1),
-      curve: Curves.easeOutCubic,
-      builder: (BuildContext context, double value, Widget? child) {
-        return Transform.scale(
-          scale: value,
-          child: Opacity(opacity: value.clamp(0, 1), child: child),
-        );
-      },
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(28),
-          onTap: onTap,
-          child: MarketPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          TradeTypeBadge(postType: post.postType),
-                          const SizedBox(height: 14),
-                          Text(
-                            post.title,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w800,
-                            ),
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onTap,
+        child: MarketPanel(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        TradeTypeBadge(postType: post.postType),
+                        const SizedBox(height: 14),
+                        Text(
+                          post.title,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            post.username,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
-                              fontWeight: FontWeight.w500,
-                            ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          post.username,
+                          style: TextStyle(
+                            color: onSurface.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.w500,
                           ),
-                        ],
-                      ),
-                    ),
-                    if (trailing != null) trailing!,
-                  ],
-                ),
-                if (post.description.trim().isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 14),
-                  Text(
-                    post.description,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      height: 1.45,
+                        ),
+                      ],
                     ),
                   ),
-                ],
-                const SizedBox(height: 18),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: <Widget>[
-                    InfoPill(icon: Icons.scale_outlined, label: '${post.quantity} kg'),
-                    InfoPill(icon: Icons.location_on_outlined, label: post.locationLabel),
-                    InfoPill(icon: Icons.schedule_rounded, label: _formatCreatedAt()),
-                    if (showPhone && post.phone.trim().isNotEmpty)
-                      InfoPill(icon: Icons.call_outlined, label: post.phone),
+                  if (trailing != null) ...<Widget>[
+                    const SizedBox(width: 12),
+                    trailing!,
                   ],
-                ),
-                if (showContactActions && post.phone.trim().isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 18),
-                  ContactActionRow(
-                    phone: post.phone,
-                    message:
-                        'Hello, I am interested in your ${post.tradeLabel.toLowerCase()} post for ${post.title}.',
-                  ),
                 ],
+              ),
+              if (post.description.trim().isNotEmpty) ...<Widget>[
+                const SizedBox(height: 14),
+                Text(
+                  post.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: onSurface.withValues(alpha: 0.8),
+                    height: 1.45,
+                  ),
+                ),
               ],
-            ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: <Widget>[
+                  if (post.hasPrice)
+                    InfoPill(
+                      icon: Icons.payments_outlined,
+                      label: formatTzsPerKg(post.pricePerKg!),
+                    ),
+                  InfoPill(
+                      icon: Icons.scale_outlined, label: '${post.quantity} kg'),
+                  InfoPill(
+                      icon: Icons.location_on_outlined,
+                      label: post.locationLabel),
+                  InfoPill(
+                      icon: Icons.schedule_rounded, label: _formatCreatedAt()),
+                  if (showPhone && post.phone.trim().isNotEmpty)
+                    InfoPill(icon: Icons.call_outlined, label: post.phone),
+                ],
+              ),
+              if (showContactActions &&
+                  post.phone.trim().isNotEmpty) ...<Widget>[
+                const SizedBox(height: 18),
+                ContactActionRow(
+                  phone: post.phone,
+                  message:
+                      'Habari, ninapenda tangazo lako la ${post.isBuy ? 'kununua' : 'kuuza'} la ${post.title}. / Hello, I am interested in your ${post.tradeLabel.toLowerCase()} post for ${post.title}.',
+                ),
+              ],
+              if (footer != null) ...<Widget>[
+                const SizedBox(height: 18),
+                footer!,
+              ],
+            ],
           ),
         ),
       ),

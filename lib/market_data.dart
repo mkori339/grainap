@@ -38,7 +38,13 @@ const Map<String, List<String>> marketDistricts = <String, List<String>>{
     'MONDULI',
     'NGORONGORO',
   ],
-  'DAR ES SALAAM': <String>['ILALA', 'KIGAMBONI', 'KINONDONI', 'TEMEKE', 'UBUNGO'],
+  'DAR ES SALAAM': <String>[
+    'ILALA',
+    'KIGAMBONI',
+    'KINONDONI',
+    'TEMEKE',
+    'UBUNGO'
+  ],
   'DODOMA': <String>[
     'BAHI',
     'CHAMWINO',
@@ -51,27 +57,90 @@ const Map<String, List<String>> marketDistricts = <String, List<String>>{
   ],
   'GEITA': <String>['BUKOMBE', 'CHATO', 'GEITA', 'MBOGWE', "NYANG'WALE"],
   'IRINGA': <String>['IRINGA', 'KILOLO', 'MUFINDI', 'MAFINGA'],
-  'KAGERA': <String>['BIHARAMULO', 'BUKOBA', 'KARAGWE', 'KYERWA', 'MISSENYI', 'MULEBA', 'NGARA'],
+  'KAGERA': <String>[
+    'BIHARAMULO',
+    'BUKOBA',
+    'KARAGWE',
+    'KYERWA',
+    'MISSENYI',
+    'MULEBA',
+    'NGARA'
+  ],
   'KATAVI': <String>['MLELE', 'MPANDA', 'TANGANYIKA'],
-  'KIGOMA': <String>['BUHIGWE', 'KAKONKO', 'KASULU', 'KIBONDO', 'KIGOMA', 'UVINZA'],
+  'KIGOMA': <String>[
+    'BUHIGWE',
+    'KAKONKO',
+    'KASULU',
+    'KIBONDO',
+    'KIGOMA',
+    'UVINZA'
+  ],
   'KILIMANJARO': <String>['HAI', 'MOSHI', 'MWANGA', 'ROMBO', 'SAME', 'SIHA'],
   'LINDI': <String>['KILWA', 'LINDI', 'LIWALE', 'NACHINGWEA', 'RUANGWA'],
   'MANYARA': <String>['BABATI', 'HANANG', 'KITETO', 'MBULU', 'SIMANJIRO'],
-  'MARA': <String>['BUNDA', 'BUTIAMA', 'MUSOMA', 'RORYA', 'SERENGETI', 'TARIME'],
+  'MARA': <String>[
+    'BUNDA',
+    'BUTIAMA',
+    'MUSOMA',
+    'RORYA',
+    'SERENGETI',
+    'TARIME'
+  ],
   'MBEYA': <String>['CHUNYA', 'KYELA', 'MBARALI', 'MBEYA', 'RUNGWE', 'TUKUYU'],
-  'MOROGORO': <String>['GAIRO', 'KILOMBERO', 'KILOSA', 'MALINYI', 'MOROGORO', 'MVOMERO', 'ULANGA'],
+  'MOROGORO': <String>[
+    'GAIRO',
+    'KILOMBERO',
+    'KILOSA',
+    'MALINYI',
+    'MOROGORO',
+    'MVOMERO',
+    'ULANGA'
+  ],
   'MTWARA': <String>['MASASI', 'MTWARA', 'NANYUMBU', 'NEWALA', 'TANDAHIMBA'],
-  'MWANZA': <String>['ILEMELA', 'KWIMBA', 'MAGU', 'MISUNGWI', 'NYAMAGANA', 'SENGEREMA', 'UKEREWE'],
+  'MWANZA': <String>[
+    'ILEMELA',
+    'KWIMBA',
+    'MAGU',
+    'MISUNGWI',
+    'NYAMAGANA',
+    'SENGEREMA',
+    'UKEREWE'
+  ],
   'NJOMBE': <String>['LUDEWA', 'MAKETE', 'NJOMBE', "WANG'ING'OMBE"],
-  'PWANI': <String>['BAGAMOYO', 'KIBAHA', 'KIBITI', 'KISARAWE', 'MAFIA', 'MKURANGA', 'RUFIJI'],
+  'PWANI': <String>[
+    'BAGAMOYO',
+    'KIBAHA',
+    'KIBITI',
+    'KISARAWE',
+    'MAFIA',
+    'MKURANGA',
+    'RUFIJI'
+  ],
   'RUKWA': <String>['KALAMBO', 'NKASI', 'SUMBAWANGA'],
   'RUVUMA': <String>['MBINGA', 'NAMTUMBO', 'NYASA', 'SONGEA', 'TUNDURU'],
   'SHINYANGA': <String>['KAHAMA', 'KISHAPU', 'SHINYANGA'],
   'SIMIYU': <String>['BARIADI', 'BUSEGA', 'ITILIMA', 'MASWA', 'MEATU'],
   'SINGIDA': <String>['IKUNGI', 'IRAMBA', 'MANYONI', 'MKALAMA', 'SINGIDA'],
   'SONGWE': <String>['ILEJE', 'MBOZI', 'MOMBA', 'SONGWE'],
-  'TABORA': <String>['IGUNGA', 'KALIUA', 'NZEGA', 'SIKONGE', 'TABORA', 'URAMBO', 'UYUI'],
-  'TANGA': <String>['HANDENI', 'KILINDI', 'KOROGWE', 'LUSHOTO', 'MKINGA', 'MUHEZA', 'PANGANI', 'TANGA'],
+  'TABORA': <String>[
+    'IGUNGA',
+    'KALIUA',
+    'NZEGA',
+    'SIKONGE',
+    'TABORA',
+    'URAMBO',
+    'UYUI'
+  ],
+  'TANGA': <String>[
+    'HANDENI',
+    'KILINDI',
+    'KOROGWE',
+    'LUSHOTO',
+    'MKINGA',
+    'MUHEZA',
+    'PANGANI',
+    'TANGA'
+  ],
   'ZANZIBAR': <String>[
     'PEMBA KASKAZINI',
     'PEMBA KUSINI',
@@ -81,4 +150,5 @@ const Map<String, List<String>> marketDistricts = <String, List<String>>{
   ],
 };
 
-List<String> districtsForRegion(String region) => marketDistricts[region] ?? const <String>[];
+List<String> districtsForRegion(String region) =>
+    marketDistricts[region] ?? const <String>[];

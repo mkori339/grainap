@@ -20,7 +20,8 @@ Future<bool> openWhatsApp(String phone, {String? message}) async {
     return false;
   }
 
-  final text = Uri.encodeComponent(message ?? 'Hello, I am interested in your post.');
+  final text =
+      Uri.encodeComponent(message ?? 'Hello, I am interested in your post.');
   final uri = Uri.parse('https://wa.me/$normalized?text=$text');
   return launchUrl(uri, mode: LaunchMode.externalApplication);
 }

@@ -3,6 +3,7 @@ import 'package:async/async.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:grainapp/app_theme.dart';
+import 'package:grainapp/app_support.dart';
 import 'package:grainapp/dialog_builders.dart';
 import 'package:grainapp/login_functions.dart';
 import 'package:grainapp/regionscreen.dart';
@@ -22,39 +23,63 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return PopScope(
       canPop: false,
       child: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: <Color>[
-                AppColors.background,
-                AppColors.backgroundSoft,
-                AppColors.panel,
+                palette.background,
+                palette.backgroundSoft,
+                palette.panel,
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
           ),
           child: SafeArea(
-            child: AnimatedLogin(
-              key: _loginKey,
-              logo: _buildLogo(),
-              initialMode: _currentMode,
-              signUpMode: SignUpModes.both,
-              loginMobileTheme: _mobileTheme,
-              onLogin: (LoginData data) async {
-                return _authOperation(LoginFunctions(context).onLogin(data));
-              },
-              onSignup: (SignUpData data) async {
-                return _authOperation(LoginFunctions(context).onSignup(data));
-              },
-              onForgotPassword: _onForgotPassword,
-              onAuthModeChange: (AuthMode newMode) async {
-                _currentMode = newMode;
-                await _operation?.cancel();
-              },
+            child: Stack(
+              children: <Widget>[
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: AnimatedLogin(
+                      key: _loginKey,
+                      logo: _buildLogo(),
+                      initialMode: _currentMode,
+                      signUpMode: SignUpModes.both,
+                      loginTexts: _loginTexts,
+                      loginMobileTheme: _mobileTheme,
+                      onLogin: (LoginData data) async {
+                        return _authOperation(
+                          LoginFunctions(context).onLogin(data),
+                        );
+                      },
+                      onSignup: (SignUpData data) async {
+                        return _authOperation(
+                          LoginFunctions(context).onSignup(data),
+                        );
+                      },
+                      onForgotPassword: _onForgotPassword,
+                      onAuthModeChange: (AuthMode newMode) async {
+                        _currentMode = newMode;
+                        await _operation?.cancel();
+                      },
+                    ),
+                  ),
+                ),
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: ThemeModeButton(color: onSurface),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -63,15 +88,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLogo() {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Container(
       width: 124,
       height: 124,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white.withOpacity(0.22)),
+        border: Border.all(color: onSurface.withValues(alpha: 0.2)),
         boxShadow: <BoxShadow>[
           BoxShadow(
-            color: AppColors.accent.withOpacity(0.18),
+            color: palette.accent.withValues(alpha: 0.18),
             blurRadius: 36,
             spreadRadius: 8,
           ),
@@ -123,10 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Logged in. Email verification is optional, but you can still verify ${refreshed.email}.',
+            'Umeingia. Unaweza kuthibitisha ${refreshed.email} ukitaka.',
           ),
           action: SnackBarAction(
-            label: 'Send link',
+            label: bi('Tuma linki', 'Send link'),
             onPressed: sendVerificationEmail,
           ),
         ),
@@ -141,15 +169,43 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<String?> _onForgotPassword(String email) async {
-    if (email.trim().isEmpty) {
-      return 'Enter your email first.';
+    final trimmedEmail = email.trim();
+
+    if (trimmedEmail.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Weka barua pepe kwanza.'),
+          ),
+        );
+      }
+      return null;
     }
 
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
-      return 'Password reset link sent.';
+      await _auth.sendPasswordResetEmail(email: trimmedEmail);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Kiungo cha kubadili nenosiri kimetumwa kwa $trimmedEmail.',
+            ),
+          ),
+        );
+      }
+      return null;
     } on FirebaseAuthException catch (error) {
-      return error.message ?? 'Unable to send reset link.';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error.message ??
+                  'Imeshindikana kutuma kiungo cha kubadili nenosiri.',
+            ),
+          ),
+        );
+      }
+      return null;
     }
   }
 
@@ -162,7 +218,11 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Verification email sent to ${user.email}.')),
+          SnackBar(
+            content: Text(
+              'Barua ya uthibitisho imetumwa kwa ${user.email}.',
+            ),
+          ),
         );
       }
     } catch (error) {
@@ -170,21 +230,108 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error sending email verification: $error')),
+        SnackBar(
+          content: Text(
+            'Hitilafu kutuma uthibitisho wa barua pepe: $error',
+          ),
+        ),
       );
     }
   }
 
+  LoginTexts get _loginTexts => LoginTexts(
+        welcome: bi('Karibu!', 'Welcome!'),
+        welcomeDescription: bi(
+          'Pata wanunuzi na wauzaji wa mazao kwa haraka.',
+          'Find grain buyers and sellers quickly.',
+        ),
+        signUp: bi('Jisajili', 'Sign Up'),
+        signUpFormTitle: bi('Fungua akaunti', 'Create account'),
+        signUpUseEmail: bi(
+          'au tumia barua pepe kujisajili:',
+          'or use your email for registration:',
+        ),
+        welcomeBack: bi('Karibu tena!', 'Welcome back!'),
+        welcomeBackDescription: bi(
+          'Ingia uone bei, matangazo na masoko ya karibu.',
+          'Sign in to view prices, listings, and nearby markets.',
+        ),
+        login: bi('Ingia', 'Login'),
+        loginFormTitle: bi('Ingia kwenye akaunti', 'Login to account'),
+        loginUseEmail: bi(
+          'au tumia akaunti yako ya barua pepe:',
+          'or use your email account:',
+        ),
+        forgotPassword: bi(
+          'Umesahau nenosiri?',
+          'Forgot password?',
+        ),
+        notHaveAnAccount: bi(
+          'Huna akaunti?',
+          'Don\'t have an account?',
+        ),
+        alreadyHaveAnAccount: bi(
+          'Una akaunti tayari?',
+          'Already have an account?',
+        ),
+        nameHint: bi('Jina', 'Name'),
+        signupEmailHint: bi('Barua pepe', 'Email'),
+        signupPasswordHint: bi('Nenosiri', 'Password'),
+        loginEmailHint: bi('Barua pepe', 'Email'),
+        loginPasswordHint: bi('Nenosiri', 'Password'),
+        confirmPasswordHint: bi('Thibitisha nenosiri', 'Confirm password'),
+        passwordMatchingError: bi(
+          'Nenosiri halifanani. Angalia tena.',
+          'Passwords do not match. Check again.',
+        ),
+        dialogButtonText: bi('Sawa', 'OK'),
+      );
+
   LoginViewTheme get _mobileTheme => LoginViewTheme(
         backgroundColor: Colors.transparent,
-        formFieldBackgroundColor: Colors.white.withOpacity(0.08),
-        formWidthRatio: 72,
-        actionButtonStyle: FilledButton.styleFrom(
-          backgroundColor: AppColors.accent,
-          foregroundColor: AppColors.background,
+        formFieldBackgroundColor: context.appPalette.panelSoft.withValues(
+          alpha: Theme.of(context).brightness == Brightness.dark ? 0.34 : 0.84,
         ),
-        privacyPolicyStyle: TextStyle(color: Colors.white.withOpacity(0.65)),
-        privacyPolicyLinkStyle: const TextStyle(color: AppColors.accentSoft),
+        formFieldHoverColor: context.appPalette.accent.withValues(alpha: 0.08),
+        formWidthRatio: 72,
+        textFormStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+          fontWeight: FontWeight.w500,
+        ),
+        hintTextStyle: TextStyle(
+          color:
+              Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.58),
+        ),
+        useEmailStyle: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+        ),
+        changeActionTextStyle: TextStyle(
+          color: context.appPalette.accentSoft,
+          fontWeight: FontWeight.w700,
+          decoration: TextDecoration.none,
+        ),
+        forgotPasswordStyle: TextStyle(
+          color: context.appPalette.accentSoft,
+          fontWeight: FontWeight.w600,
+          decoration: TextDecoration.none,
+        ),
+        actionButtonStyle: FilledButton.styleFrom(
+          backgroundColor: context.appPalette.accent,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        ),
+        privacyPolicyStyle: TextStyle(
+          color:
+              Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.65),
+        ),
+        privacyPolicyLinkStyle: TextStyle(
+          color: context.appPalette.accentSoft,
+          decoration: TextDecoration.none,
+        ),
+        enabledBorderColor:
+            Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.12),
+        focusedBorderColor: context.appPalette.accent,
+        focusedErrorBorderColor: Theme.of(context).colorScheme.error,
+        errorBorderColor: Theme.of(context).colorScheme.error,
         animatedComponentOrder: const <AnimatedComponent>[
           AnimatedComponent(
             component: LoginComponents.logo,

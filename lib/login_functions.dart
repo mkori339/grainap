@@ -1,6 +1,6 @@
 import 'package:animated_login/animated_login.dart';
 import 'package:flutter/material.dart';
-import 'package:grainapp/signupFirebase.dart';
+import 'package:grainapp/signup_firebase.dart';
 
 class LoginFunctions {
   final BuildContext context;
@@ -16,7 +16,7 @@ class LoginFunctions {
       return null;
     }
 
-    return 'Invalid email or password.';
+    return 'Barua pepe au nenosiri si sahihi.';
   }
 
   /// Simulate signup functionality
@@ -31,9 +31,9 @@ class LoginFunctions {
         return null;
       }
 
-      return 'This user already exists or could not be created.';
+      return 'Mtumiaji huyu tayari yupo au hakuweza kuundwa.';
     }
 
-    return 'Failed. Check your details and try again.';
+    return 'Imeshindikana. Angalia taarifa zako kisha jaribu tena.';
   }
 }

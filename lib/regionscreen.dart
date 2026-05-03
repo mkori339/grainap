@@ -4,9 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:grainapp/abautapp.dart';
+import 'package:grainapp/app_support.dart';
 import 'package:grainapp/app_theme.dart';
 import 'package:grainapp/authentificatin.dart';
-import 'package:grainapp/developer.dart';
 import 'package:grainapp/districtscreen.dart';
 import 'package:grainapp/market_data.dart';
 import 'package:grainapp/market_post.dart';
@@ -14,10 +14,11 @@ import 'package:grainapp/mypost.dart';
 import 'package:grainapp/post_widgets.dart';
 import 'package:grainapp/posts.dart';
 import 'package:grainapp/profile.dart';
-import 'package:grainapp/signupFirebase.dart';
+import 'package:grainapp/product_catalog.dart';
+import 'package:grainapp/signup_firebase.dart';
 import 'package:grainapp/viewpost.dart';
 
-enum _MenuAction { aboutApp, developer, logout }
+enum _MenuAction { aboutApp, logout }
 
 class RegionScreen extends StatefulWidget {
   const RegionScreen({super.key});
@@ -27,65 +28,31 @@ class RegionScreen extends StatefulWidget {
 }
 
 class _RegionScreenState extends State<RegionScreen> {
-  static const List<String> _heroImages = <String>[
-    'images/image1.webp',
-    'images/image2.jpeg',
-    'images/image3.jpeg',
-    'images/image4.jpeg',
-    'images/image5.jpeg',
-    'images/image6.jpeg',
-    'images/image7.jpeg',
-  ];
+  static const String _allProductsLabel = 'All';
 
-  Timer? _heroTimer;
-  int _heroIndex = 0;
+  final ProductCatalogService _productCatalogService = ProductCatalogService();
+  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _regionSearchController = TextEditingController();
   String _search = '';
   String _regionSearch = '';
-  String _selectedProduct = 'All';
+  String _selectedProduct = _allProductsLabel;
   String _typeFilter = 'all';
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  @override
-  void initState() {
-    super.initState();
-    _heroTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _heroIndex = (_heroIndex + 1) % _heroImages.length;
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _heroTimer?.cancel();
-    super.dispose();
-  }
-
   Stream<List<String>> _productStream() {
-    return FirebaseFirestore.instance.collection('product').snapshots().map((snapshot) {
-      final products = <String>{'All'};
-      for (final doc in snapshot.docs) {
-        for (final value in doc.data().values) {
-          final product = value.toString().trim();
-          if (product.isNotEmpty) {
-            products.add(product);
-          }
-        }
-      }
-      final rest = products.where((String item) => item != 'All').toList()..sort();
-      return <String>['All', ...rest];
-    });
+    return _productCatalogService.watchProductLabels(
+      includeAllOption: true,
+      allLabel: _allProductsLabel,
+    );
   }
 
   Stream<List<MarketPost>> _postsStream() {
     return FirebaseFirestore.instance.collection('userpost').snapshots().map(
       (QuerySnapshot<Map<String, dynamic>> snapshot) {
         final posts = snapshot.docs.map(MarketPost.fromQueryDocument).toList()
-          ..sort((MarketPost a, MarketPost b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+          ..sort((MarketPost a, MarketPost b) =>
+              b.createdAtMillis.compareTo(a.createdAtMillis));
         return posts;
       },
     );
@@ -94,15 +61,25 @@ class _RegionScreenState extends State<RegionScreen> {
   List<MarketPost> _filterPosts(List<MarketPost> posts) {
     return posts.where((MarketPost post) {
       final search = _search.toLowerCase();
-      final matchesSearch = search.isEmpty ||
-          post.title.toLowerCase().contains(search) ||
-          post.username.toLowerCase().contains(search) ||
-          post.region.toLowerCase().contains(search) ||
-          post.district.toLowerCase().contains(search);
-      final matchesProduct = _selectedProduct == 'All' || post.title == _selectedProduct;
+      final matchesSearch =
+          search.isEmpty || post.title.toLowerCase().contains(search);
+      final matchesProduct = _selectedProduct == _allProductsLabel ||
+          post.title == _selectedProduct;
       final matchesType = _typeFilter == 'all' || post.postType == _typeFilter;
       return matchesSearch && matchesProduct && matchesType;
     }).toList();
+  }
+
+  void _applyMarketSearch() {
+    setState(() {
+      _search = _searchController.text.trim();
+    });
+  }
+
+  void _applyRegionSearch() {
+    setState(() {
+      _regionSearch = _regionSearchController.text.trim();
+    });
   }
 
   Future<void> _handleMenuAction(_MenuAction action) async {
@@ -110,11 +87,6 @@ class _RegionScreenState extends State<RegionScreen> {
       case _MenuAction.aboutApp:
         await Navigator.of(context).push(
           MaterialPageRoute<void>(builder: (_) => const AboutAppPage()),
-        );
-        break;
-      case _MenuAction.developer:
-        await Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const DeveloperProfilePage()),
         );
         break;
       case _MenuAction.logout:
@@ -131,25 +103,25 @@ class _RegionScreenState extends State<RegionScreen> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    _regionSearchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              const Text(
-                'Grain Market',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              Text(
-                'Buy fast. Sell faster.',
-                style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.68)),
-              ),
-            ],
+          title: const MarketPageTitle(
+            title: 'Soko la Nafaka / Grain Market',
+            subtitle:
+                'Tazama matangazo, mikoa na wafanyabiashara / Browse listings, regions, and active traders.',
           ),
           actions: <Widget>[
+            const ThemeModeButton(),
             IconButton(
               tooltip: 'My posts',
               onPressed: () {
@@ -179,27 +151,33 @@ class _RegionScreenState extends State<RegionScreen> {
             ),
             PopupMenuButton<_MenuAction>(
               onSelected: _handleMenuAction,
-              itemBuilder: (BuildContext context) => const <PopupMenuEntry<_MenuAction>>[
+              itemBuilder: (BuildContext context) =>
+                  const <PopupMenuEntry<_MenuAction>>[
                 PopupMenuItem<_MenuAction>(
                   value: _MenuAction.aboutApp,
-                  child: Text('About app'),
-                ),
-                PopupMenuItem<_MenuAction>(
-                  value: _MenuAction.developer,
-                  child: Text('Developer'),
+                  child: Text('About'),
                 ),
                 PopupMenuItem<_MenuAction>(
                   value: _MenuAction.logout,
-                  child: Text('Logout'),
+                  child: Text('Toka'),
                 ),
               ],
             ),
           ],
-          bottom: const TabBar(
-            tabs: <Tab>[
-              Tab(icon: Icon(Icons.travel_explore_rounded), text: 'Market'),
-              Tab(icon: Icon(Icons.map_outlined), text: 'Regions'),
-            ],
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(58),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: TabBar(
+                tabs: <Tab>[
+                  Tab(
+                    icon: Icon(Icons.travel_explore_rounded),
+                    text: 'Market',
+                  ),
+                  Tab(icon: Icon(Icons.map_outlined), text: 'Mikoa'),
+                ],
+              ),
+            ),
           ),
         ),
         floatingActionButton: FloatingActionButton.extended(
@@ -215,16 +193,21 @@ class _RegionScreenState extends State<RegionScreen> {
           child: SafeArea(
             child: StreamBuilder<List<String>>(
               stream: _productStream(),
-              builder: (BuildContext context, AsyncSnapshot<List<String>> productSnapshot) {
+              builder: (BuildContext context,
+                  AsyncSnapshot<List<String>> productSnapshot) {
                 return StreamBuilder<List<MarketPost>>(
                   stream: _postsStream(),
-                  builder: (BuildContext context, AsyncSnapshot<List<MarketPost>> postSnapshot) {
-                    if (productSnapshot.connectionState == ConnectionState.waiting &&
-                        postSnapshot.connectionState == ConnectionState.waiting) {
+                  builder: (BuildContext context,
+                      AsyncSnapshot<List<MarketPost>> postSnapshot) {
+                    if (productSnapshot.connectionState ==
+                            ConnectionState.waiting &&
+                        postSnapshot.connectionState ==
+                            ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final products = productSnapshot.data ?? const <String>['All'];
+                    final products = productSnapshot.data ??
+                        const <String>[_allProductsLabel];
                     final posts = postSnapshot.data ?? const <MarketPost>[];
 
                     return TabBarView(
@@ -244,38 +227,53 @@ class _RegionScreenState extends State<RegionScreen> {
   }
 
   Widget _buildMarketTab(List<String> products, List<MarketPost> posts) {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     final filteredPosts = _filterPosts(posts);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
-        _buildHero(),
+        const _RotatingHeroBanner(),
         const SizedBox(height: 16),
-        const MarketPanel(
+        MarketPanel(
           child: SectionHeader(
             icon: Icons.auto_awesome_rounded,
-            title: 'Live market',
-            subtitle: 'Use icons and filters to find the right trader quickly.',
+            title: 'Soko la moja kwa moja / Live market',
+            subtitle:
+                'Tumia vichujio kupata mfanyabiashara kwa haraka / Use filters to find the right trader quickly.',
+            trailing: InfoPill(
+              icon: Icons.storefront_outlined,
+              label: '${filteredPosts.length} yanaonekana / visible',
+              compact: true,
+            ),
           ),
         ),
         const SizedBox(height: 16),
         TextField(
-          decoration: const InputDecoration(
-            hintText: 'Search product, trader, region, district',
-            prefixIcon: Icon(Icons.search_rounded),
+          controller: _searchController,
+          cursorColor: palette.accent,
+          style: TextStyle(color: onSurface),
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+            hintText: 'Tafuta bidhaa',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: IconButton(
+              onPressed: _applyMarketSearch,
+              icon: const Icon(Icons.arrow_forward_rounded),
+            ),
           ),
-          onChanged: (String value) {
-            setState(() {
-              _search = value;
-            });
-          },
+          onSubmitted: (_) => _applyMarketSearch(),
         ),
         const SizedBox(height: 16),
         SegmentedButton<String>(
           style: SegmentedButton.styleFrom(
-            backgroundColor: Colors.white.withOpacity(0.04),
-            foregroundColor: Colors.white,
-            selectedBackgroundColor: AppColors.accent.withOpacity(0.14),
+            backgroundColor: onSurface.withValues(
+              alpha:
+                  Theme.of(context).brightness == Brightness.dark ? 0.04 : 0.03,
+            ),
+            foregroundColor: onSurface,
+            selectedBackgroundColor: palette.accent.withValues(alpha: 0.14),
           ),
           segments: const <ButtonSegment<String>>[
             ButtonSegment<String>(
@@ -314,9 +312,11 @@ class _RegionScreenState extends State<RegionScreen> {
                 selected: product == _selectedProduct,
                 label: Text(product),
                 avatar: Icon(
-                  product == _selectedProduct ? Icons.check_circle_rounded : Icons.grass_outlined,
+                  product == _selectedProduct
+                      ? Icons.check_circle_rounded
+                      : Icons.grass_outlined,
                   size: 18,
-                  color: Colors.white,
+                  color: onSurface,
                 ),
                 onSelected: (_) {
                   setState(() {
@@ -331,8 +331,9 @@ class _RegionScreenState extends State<RegionScreen> {
         if (filteredPosts.isEmpty)
           const EmptyStateCard(
             icon: Icons.inbox_outlined,
-            title: 'No posts found',
-            subtitle: 'Change the filters or create a fresh listing.',
+            title: 'Hakuna matangazo / No posts found',
+            subtitle:
+                'Badili kichujio au tengeneza tangazo jipya / Change the filters or create a fresh listing.',
           )
         else
           ...filteredPosts.map(
@@ -360,12 +361,14 @@ class _RegionScreenState extends State<RegionScreen> {
 
   Widget _buildRegionsTab(List<MarketPost> posts) {
     final filteredRegions = marketRegions
-        .where((String region) => region.toLowerCase().contains(_regionSearch.toLowerCase()))
+        .where((String region) =>
+            region.toLowerCase().contains(_regionSearch.toLowerCase()))
         .toList();
 
     final regionCounts = <String, int>{};
     for (final post in posts) {
-      regionCounts.update(post.region, (int value) => value + 1, ifAbsent: () => 1);
+      regionCounts.update(post.region, (int value) => value + 1,
+          ifAbsent: () => 1);
     }
 
     return Padding(
@@ -375,84 +378,61 @@ class _RegionScreenState extends State<RegionScreen> {
           const MarketPanel(
             child: SectionHeader(
               icon: Icons.public_rounded,
-              title: 'Regions',
-              subtitle: 'Browse available districts and local post volume.',
+              title: 'Mikoa / Regions',
+              subtitle:
+                  'Tazama wilaya zilizopo na wingi wa matangazo / Browse available districts and local post volume.',
             ),
           ),
           const SizedBox(height: 16),
           TextField(
-            decoration: const InputDecoration(
-              hintText: 'Search region',
-              prefixIcon: Icon(Icons.search_rounded),
+            controller: _regionSearchController,
+            cursorColor: Theme.of(context).colorScheme.primary,
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'Tafuta mkoa',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: IconButton(
+                onPressed: _applyRegionSearch,
+                icon: const Icon(Icons.arrow_forward_rounded),
+              ),
             ),
-            onChanged: (String value) {
-              setState(() {
-                _regionSearch = value;
-              });
-            },
+            onSubmitted: (_) => _applyRegionSearch(),
           ),
           const SizedBox(height: 16),
           Expanded(
             child: filteredRegions.isEmpty
                 ? const EmptyStateCard(
                     icon: Icons.map_outlined,
-                    title: 'No region found',
-                    subtitle: 'Try another search term.',
+                    title: 'Mkoa haujapatikana / No region found',
+                    subtitle: 'Jaribu neno jingine / Try another search term.',
                   )
                 : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
                       maxCrossAxisExtent: 260,
                       crossAxisSpacing: 14,
                       mainAxisSpacing: 14,
-                      childAspectRatio: 1.2,
+                      mainAxisExtent: 264,
                     ),
                     itemCount: filteredRegions.length,
                     itemBuilder: (BuildContext context, int index) {
                       final region = filteredRegions[index];
                       final count = regionCounts[region] ?? 0;
-                      return Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(28),
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => DistrictScreen(
-                                  region: region,
-                                  regionid: marketRegions.indexOf(region),
-                                ),
+                      return _RegionCard(
+                        region: region,
+                        postCount: count,
+                        districtCount: districtsForRegion(region).length,
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => DistrictScreen(
+                                region: region,
+                                regionid: marketRegions.indexOf(region),
                               ),
-                            );
-                          },
-                          child: MarketPanel(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: <Widget>[
-                                const Icon(Icons.near_me_outlined, size: 30, color: Colors.white),
-                                Text(
-                                  region,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                Wrap(
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: <Widget>[
-                                    InfoPill(icon: Icons.storefront_outlined, label: '$count posts', compact: true),
-                                    InfoPill(
-                                      icon: Icons.location_city_outlined,
-                                      label: '${districtsForRegion(region).length} districts',
-                                      compact: true,
-                                    ),
-                                  ],
-                                ),
-                              ],
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -461,78 +441,291 @@ class _RegionScreenState extends State<RegionScreen> {
       ),
     );
   }
+}
 
-  Widget _buildHero() {
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 500),
-      tween: Tween<double>(begin: 0.96, end: 1),
-      curve: Curves.easeOutCubic,
-      builder: (BuildContext context, double value, Widget? child) {
-        return Transform.scale(
-          scale: value,
-          child: Opacity(opacity: value.clamp(0, 1), child: child),
-        );
-      },
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 500),
-        child: Container(
-          key: ValueKey<int>(_heroIndex),
-          height: 220,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(32),
-            image: DecorationImage(
-              image: AssetImage(_heroImages[_heroIndex]),
-              fit: BoxFit.cover,
-              colorFilter: ColorFilter.mode(
-                Colors.black.withOpacity(0.34),
-                BlendMode.darken,
+class _RegionCard extends StatelessWidget {
+  const _RegionCard({
+    required this.region,
+    required this.postCount,
+    required this.districtCount,
+    required this.onTap,
+  });
+
+  final String region;
+  final int postCount;
+  final int districtCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(28),
+        onTap: onTap,
+        child: MarketPanel(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: onSurface.withValues(
+                        alpha: Theme.of(context).brightness == Brightness.dark
+                            ? 0.08
+                            : 0.05,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.near_me_outlined,
+                      size: 26,
+                      color: palette.accentSoft,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    Icons.arrow_outward_rounded,
+                    color: onSurface.withValues(alpha: 0.56),
+                  ),
+                ],
               ),
+              const SizedBox(height: 14),
+              Text(
+                region,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                bi(
+                  'Gusa kuona shughuli za biashara za wilaya.',
+                  'Tap to explore district-level trading activity.',
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: onSurface.withValues(alpha: 0.64),
+                  height: 1.3,
+                ),
+              ),
+              const Spacer(),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: <Widget>[
+                  _RegionMetricChip(
+                    icon: Icons.storefront_outlined,
+                    label: '$postCount posts',
+                  ),
+                  _RegionMetricChip(
+                    icon: Icons.location_city_outlined,
+                    label: '$districtCount districts',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RegionMetricChip extends StatelessWidget {
+  const _RegionMetricChip({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: onSurface.withValues(
+          alpha: Theme.of(context).brightness == Brightness.dark ? 0.05 : 0.04,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: onSurface.withValues(alpha: 0.06)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(icon, size: 15, color: palette.accentSoft),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: onSurface.withValues(alpha: 0.9),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(32),
-              gradient: LinearGradient(
-                colors: <Color>[
-                  Colors.black.withOpacity(0.16),
-                  AppColors.background.withOpacity(0.85),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RotatingHeroBanner extends StatefulWidget {
+  const _RotatingHeroBanner();
+
+  @override
+  State<_RotatingHeroBanner> createState() => _RotatingHeroBannerState();
+}
+
+class _RotatingHeroBannerState extends State<_RotatingHeroBanner> {
+  static const List<String> _heroImages = <String>[
+    'images/image2.jpeg',
+    'images/image3.jpeg',
+    'images/image7.jpeg',
+  ];
+
+  Timer? _timer;
+  int _heroIndex = 0;
+  bool _didPrecache = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didPrecache) {
+      return;
+    }
+    _didPrecache = true;
+    for (final image in _heroImages) {
+      precacheImage(AssetImage(image), context);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _heroIndex = (_heroIndex + 1) % _heroImages.length;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appPalette;
+    const heroForeground = Colors.white;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 550),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: Container(
+        key: ValueKey<int>(_heroIndex),
+        height: 220,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(32),
+          image: DecorationImage(
+            image: AssetImage(_heroImages[_heroIndex]),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withValues(alpha: 0.34),
+              BlendMode.darken,
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: <Widget>[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(Icons.bolt_rounded, size: 16, color: AppColors.highlight),
-                      SizedBox(width: 8),
-                      Text('Fast contact, no in-app chat'),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Responsive listings built for buying and selling.',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800, height: 1.1),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Open WhatsApp or place a call directly from every post card.',
-                  style: TextStyle(color: Colors.white.withOpacity(0.78), height: 1.5),
-                ),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            gradient: LinearGradient(
+              colors: <Color>[
+                Colors.black.withValues(alpha: 0.18),
+                AppPalettes.dark.background.withValues(alpha: 0.9),
               ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: <Widget>[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Icon(
+                      Icons.bolt_rounded,
+                      size: 16,
+                      color: palette.highlight,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      bi(
+                        'Mawasiliano ya haraka, hakuna chat ya ndani',
+                        'Fast contact, no in-app chat',
+                      ),
+                      style: const TextStyle(color: heroForeground),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                bi(
+                  'Matangazo ya kununua na kuuza yaliyoboreshwa.',
+                  'Responsive listings built for buying and selling.',
+                ),
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  height: 1.1,
+                  color: heroForeground,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                bi(
+                  'Fungua WhatsApp au piga simu moja kwa moja kutoka kwenye tangazo.',
+                  'Open WhatsApp or place a call directly from every post card.',
+                ),
+                style: TextStyle(
+                  color: heroForeground.withValues(alpha: 0.82),
+                  height: 1.5,
+                ),
+              ),
+            ],
           ),
         ),
       ),

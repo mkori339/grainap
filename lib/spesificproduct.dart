@@ -1,8 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:grainapp/app_support.dart';
+import 'package:grainapp/app_theme.dart';
 import 'package:grainapp/market_post.dart';
 import 'package:grainapp/post_widgets.dart';
+import 'package:grainapp/product_catalog.dart';
 import 'package:grainapp/viewpost.dart';
 
 class ProductScreen extends StatefulWidget {
@@ -20,27 +23,21 @@ class ProductScreen extends StatefulWidget {
 }
 
 class _ProductScreenState extends State<ProductScreen> {
+  static const String _allProductsLabel = 'All';
+
+  final ProductCatalogService _productCatalogService = ProductCatalogService();
+  final TextEditingController _searchController = TextEditingController();
   String _search = '';
-  String _selectedProduct = 'All';
+  String _selectedProduct = _allProductsLabel;
   String _typeFilter = 'all';
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
   Stream<List<String>> _productStream() {
-    return FirebaseFirestore.instance.collection('product').snapshots().map((snapshot) {
-      final products = <String>{'All'};
-      for (final doc in snapshot.docs) {
-        for (final value in doc.data().values) {
-          final product = value.toString().trim();
-          if (product.isNotEmpty) {
-            products.add(product);
-          }
-        }
-      }
-      final list = products.toList();
-      final rest = list.where((String item) => item != 'All').toList()..sort();
-      return <String>['All', ...rest];
-    });
+    return _productCatalogService.watchProductLabels(
+      includeAllOption: true,
+      allLabel: _allProductsLabel,
+    );
   }
 
   Stream<List<MarketPost>> _postsStream() {
@@ -51,7 +48,8 @@ class _ProductScreenState extends State<ProductScreen> {
         .snapshots()
         .map((QuerySnapshot<Map<String, dynamic>> snapshot) {
       final posts = snapshot.docs.map(MarketPost.fromQueryDocument).toList()
-        ..sort((MarketPost a, MarketPost b) => b.createdAtMillis.compareTo(a.createdAtMillis));
+        ..sort((MarketPost a, MarketPost b) =>
+            b.createdAtMillis.compareTo(a.createdAtMillis));
       return posts;
     });
   }
@@ -59,35 +57,63 @@ class _ProductScreenState extends State<ProductScreen> {
   List<MarketPost> _filterPosts(List<MarketPost> posts) {
     return posts.where((MarketPost post) {
       final matchesSearch = _search.isEmpty ||
-          post.title.toLowerCase().contains(_search.toLowerCase()) ||
-          post.username.toLowerCase().contains(_search.toLowerCase()) ||
-          post.description.toLowerCase().contains(_search.toLowerCase());
-      final matchesProduct = _selectedProduct == 'All' || post.title == _selectedProduct;
+          post.title.toLowerCase().contains(_search.toLowerCase());
+      final matchesProduct = _selectedProduct == _allProductsLabel ||
+          post.title == _selectedProduct;
       final matchesType = _typeFilter == 'all' || post.postType == _typeFilter;
       return matchesSearch && matchesProduct && matchesType;
     }).toList();
   }
 
+  void _applySearch() {
+    setState(() {
+      _search = _searchController.text.trim();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final palette = context.appPalette;
+
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.district}, ${widget.region}')),
+      appBar: AppBar(
+        title: MarketPageTitle(
+          title: widget.district,
+          subtitle: bi(
+            'Matangazo ya soko la ${widget.region}',
+            '${widget.region} market listings',
+          ),
+        ),
+        actions: const <Widget>[ThemeModeButton()],
+      ),
       body: MarketBackground(
         child: SafeArea(
           child: StreamBuilder<List<String>>(
             stream: _productStream(),
-            builder: (BuildContext context, AsyncSnapshot<List<String>> productSnapshot) {
-              final products = productSnapshot.data ?? const <String>['All'];
+            builder: (BuildContext context,
+                AsyncSnapshot<List<String>> productSnapshot) {
+              final products =
+                  productSnapshot.data ?? const <String>[_allProductsLabel];
 
               return StreamBuilder<List<MarketPost>>(
                 stream: _postsStream(),
-                builder: (BuildContext context, AsyncSnapshot<List<MarketPost>> snapshot) {
+                builder: (BuildContext context,
+                    AsyncSnapshot<List<MarketPost>> snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting &&
-                      productSnapshot.connectionState == ConnectionState.waiting) {
+                      productSnapshot.connectionState ==
+                          ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  final filteredPosts = _filterPosts(snapshot.data ?? const <MarketPost>[]);
+                  final filteredPosts =
+                      _filterPosts(snapshot.data ?? const <MarketPost>[]);
 
                   return ListView(
                     padding: const EdgeInsets.all(16),
@@ -95,28 +121,34 @@ class _ProductScreenState extends State<ProductScreen> {
                       const MarketPanel(
                         child: SectionHeader(
                           icon: Icons.store_mall_directory_outlined,
-                          title: 'District market',
-                          subtitle: 'Filter posts and contact traders directly.',
+                          title: 'Soko la wilaya / District market',
+                          subtitle:
+                              'Chuja matangazo na wasiliana moja kwa moja / Filter posts and contact traders directly.',
                         ),
                       ),
                       const SizedBox(height: 16),
                       TextField(
-                        decoration: const InputDecoration(
-                          hintText: 'Search trader or product',
-                          prefixIcon: Icon(Icons.search_rounded),
+                        controller: _searchController,
+                        cursorColor: palette.accent,
+                        style: TextStyle(color: onSurface),
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: 'Tafuta bidhaa',
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          suffixIcon: IconButton(
+                            onPressed: _applySearch,
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                          ),
                         ),
-                        onChanged: (String value) {
-                          setState(() {
-                            _search = value;
-                          });
-                        },
+                        onSubmitted: (_) => _applySearch(),
                       ),
                       const SizedBox(height: 16),
                       SegmentedButton<String>(
                         style: SegmentedButton.styleFrom(
-                          backgroundColor: Colors.white.withOpacity(0.04),
+                          backgroundColor: Colors.white.withValues(alpha: 0.04),
                           foregroundColor: Colors.white,
-                          selectedBackgroundColor: Colors.white.withOpacity(0.12),
+                          selectedBackgroundColor:
+                              Colors.white.withValues(alpha: 0.12),
                         ),
                         segments: const <ButtonSegment<String>>[
                           ButtonSegment<String>(
@@ -154,9 +186,11 @@ class _ProductScreenState extends State<ProductScreen> {
                               selected: selected,
                               label: Text(product),
                               avatar: Icon(
-                                selected ? Icons.check_circle_rounded : Icons.grass_outlined,
+                                selected
+                                    ? Icons.check_circle_rounded
+                                    : Icons.grass_outlined,
                                 size: 18,
-                                color: Colors.white,
+                                color: Theme.of(context).colorScheme.onSurface,
                               ),
                               onSelected: (_) {
                                 setState(() {
@@ -165,7 +199,8 @@ class _ProductScreenState extends State<ProductScreen> {
                               },
                             );
                           },
-                          separatorBuilder: (_, __) => const SizedBox(width: 10),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 10),
                           itemCount: products.length,
                         ),
                       ),
@@ -173,8 +208,10 @@ class _ProductScreenState extends State<ProductScreen> {
                       if (filteredPosts.isEmpty)
                         const EmptyStateCard(
                           icon: Icons.inbox_outlined,
-                          title: 'No matching posts',
-                          subtitle: 'Try another filter or check a nearby district.',
+                          title:
+                              'Hakuna matangazo yanayofanana / No matching posts',
+                          subtitle:
+                              'Jaribu kichujio kingine au angalia wilaya jirani / Try another filter or check a nearby district.',
                         )
                       else
                         ...filteredPosts.map(

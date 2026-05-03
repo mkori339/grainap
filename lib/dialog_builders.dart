@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:grainapp/app_support.dart';
 
 class DialogBuilder {
   final BuildContext context;
@@ -12,7 +13,7 @@ class DialogBuilder {
       builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: const Text('Notice'),
-          content: Text(message),
+          content: Text(sanitizeUiText(message)),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
@@ -34,7 +35,7 @@ class DialogBuilder {
             children: <Widget>[
               const CircularProgressIndicator(),
               const SizedBox(width: 20),
-              Expanded(child: Text(message ?? 'Loading...')),
+              Expanded(child: Text(sanitizeUiText(message ?? 'Loading...'))),
             ],
           ),
         );

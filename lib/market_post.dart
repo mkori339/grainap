@@ -8,6 +8,7 @@ class MarketPost {
     required this.phone,
     required this.title,
     required this.quantity,
+    required this.pricePerKg,
     required this.description,
     required this.region,
     required this.district,
@@ -22,6 +23,7 @@ class MarketPost {
   final String phone;
   final String title;
   final String quantity;
+  final double? pricePerKg;
   final String description;
   final String region;
   final String district;
@@ -40,6 +42,7 @@ class MarketPost {
       phone: (source['phone'] ?? '').toString(),
       title: (source['pname'] ?? 'Untitled product').toString(),
       quantity: (source['quantyty'] ?? '').toString(),
+      pricePerKg: _parsePrice(source['price_per_kg']),
       description: (source['expl'] ?? '').toString(),
       region: (source['region'] ?? '').toString(),
       district: (source['distrname'] ?? '').toString(),
@@ -53,11 +56,14 @@ class MarketPost {
     return MarketPost.fromMap(doc.id, doc.data());
   }
 
-  factory MarketPost.fromQueryDocument(QueryDocumentSnapshot<Map<String, dynamic>> doc) {
+  factory MarketPost.fromQueryDocument(
+      QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     return MarketPost.fromMap(doc.id, doc.data());
   }
 
   bool get isBuy => postType == 'buy';
+
+  bool get hasPrice => (pricePerKg ?? 0) > 0;
 
   String get tradeLabel => isBuy ? 'Buy' : 'Sell';
 
@@ -68,5 +74,15 @@ class MarketPost {
         .where((value) => value.trim().isNotEmpty)
         .toList();
     return values.join(' • ');
+  }
+
+  static double? _parsePrice(dynamic raw) {
+    if (raw is num) {
+      return raw.toDouble();
+    }
+    if (raw is String) {
+      return double.tryParse(raw.trim());
+    }
+    return null;
   }
 }

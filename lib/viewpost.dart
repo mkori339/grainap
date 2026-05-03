@@ -1,6 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:grainapp/app_support.dart';
+import 'package:grainapp/app_theme.dart';
 import 'package:grainapp/market_post.dart';
+import 'package:grainapp/mypost.dart';
 import 'package:grainapp/post_widgets.dart';
 
 class ViewPost extends StatelessWidget {
@@ -15,26 +19,84 @@ class ViewPost extends StatelessWidget {
   final String userId_;
   final String postuid;
 
+  Future<void> _deletePost(BuildContext context, MarketPost post) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete post'),
+          content: Text(
+            'Ondoa "${post.title}" kwenye matangazo yako?',
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .collection('userpost')
+        .doc(post.id)
+        .delete();
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Tangazo limefutwa.'),
+      ),
+    );
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Post Details')),
+      appBar: AppBar(
+        title: const MarketPageTitle(
+          title: 'Maelezo ya Tangazo / Post Details',
+          subtitle:
+              'Soma tangazo na wasiliana moja kwa moja na muuzaji / Read the listing and contact the trader directly.',
+        ),
+        actions: const <Widget>[ThemeModeButton()],
+      ),
       body: MarketBackground(
         child: SafeArea(
           child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance.collection('userpost').doc(pid).snapshots(),
-            builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snapshot) {
+            stream: FirebaseFirestore.instance
+                .collection('userpost')
+                .doc(pid)
+                .snapshots(),
+            builder: (BuildContext context,
+                AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>>
+                    snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
 
               if (!snapshot.hasData || !snapshot.data!.exists) {
-                return const Padding(
-                  padding: EdgeInsets.all(16),
+                return Padding(
+                  padding: const EdgeInsets.all(16),
                   child: EmptyStateCard(
                     icon: Icons.search_off_rounded,
-                    title: 'Post not found',
-                    subtitle: 'This listing may have been removed or is no longer available.',
+                    title: 'Tangazo halipo / Post not found',
+                    subtitle: bi(
+                      'Tangazo hili linaweza kuwa limeondolewa au halipo tena.',
+                      'This listing may have been removed or is no longer available.',
+                    ),
                   ),
                 );
               }
@@ -68,7 +130,8 @@ class ViewPost extends StatelessWidget {
                                   Text(
                                     post.username,
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.68),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.68),
                                       fontSize: 16,
                                     ),
                                   ),
@@ -77,9 +140,12 @@ class ViewPost extends StatelessWidget {
                             ),
                             CircleAvatar(
                               radius: 28,
-                              backgroundColor: Colors.white.withOpacity(0.08),
+                              backgroundColor:
+                                  Colors.white.withValues(alpha: 0.08),
                               child: Icon(
-                                post.isBuy ? Icons.shopping_cart_checkout_rounded : Icons.inventory_2_outlined,
+                                post.isBuy
+                                    ? Icons.shopping_cart_checkout_rounded
+                                    : Icons.inventory_2_outlined,
                                 color: Colors.white,
                               ),
                             ),
@@ -89,7 +155,7 @@ class ViewPost extends StatelessWidget {
                         Text(
                           post.description,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.84),
+                            color: Colors.white.withValues(alpha: 0.84),
                             height: 1.6,
                           ),
                         ),
@@ -98,14 +164,28 @@ class ViewPost extends StatelessWidget {
                           spacing: 12,
                           runSpacing: 12,
                           children: <Widget>[
-                            InfoPill(icon: Icons.scale_outlined, label: '${post.quantity} kg'),
-                            InfoPill(icon: Icons.call_outlined, label: post.phone),
-                            InfoPill(icon: Icons.location_on_outlined, label: post.locationLabel),
+                            if (post.hasPrice)
+                              InfoPill(
+                                icon: Icons.payments_outlined,
+                                label: formatTzsPerKg(post.pricePerKg!),
+                              ),
+                            InfoPill(
+                                icon: Icons.scale_outlined,
+                                label: '${post.quantity} kg'),
+                            InfoPill(
+                                icon: Icons.call_outlined,
+                                label: post.phone.isEmpty
+                                    ? 'Hakuna simu'
+                                    : post.phone),
+                            InfoPill(
+                                icon: Icons.location_on_outlined,
+                                label: post.locationLabel),
                             InfoPill(
                               icon: Icons.schedule_rounded,
                               label: post.createdAt == null
-                                  ? 'Just now'
-                                  : '${post.createdAt!.toDate()}'.substring(0, 16),
+                                  ? 'Sasa hivi'
+                                  : DateFormat('dd MMM yyyy • HH:mm')
+                                      .format(post.createdAt!.toDate()),
                             ),
                           ],
                         ),
@@ -114,7 +194,7 @@ class ViewPost extends StatelessWidget {
                           ContactActionRow(
                             phone: post.phone,
                             message:
-                                'Hello, I am interested in your ${post.tradeLabel.toLowerCase()} post for ${post.title}.',
+                                'Habari, ninapenda tangazo lako la ${post.isBuy ? 'kununua' : 'kuuza'} la ${post.title}. / Hello, I am interested in your ${post.tradeLabel.toLowerCase()} post for ${post.title}.',
                           ),
                         ],
                       ],
@@ -122,10 +202,42 @@ class ViewPost extends StatelessWidget {
                   ),
                   if (isOwner) ...<Widget>[
                     const SizedBox(height: 16),
-                    const EmptyStateCard(
-                      icon: Icons.verified_user_outlined,
-                      title: 'This is your listing',
-                      subtitle: 'Other users will see WhatsApp and call actions here instead of in-app chat.',
+                    MarketPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          const SectionHeader(
+                            icon: Icons.verified_user_outlined,
+                            title: 'Simamia tangazo / Manage your listing',
+                            subtitle:
+                                'Badili taarifa au futa tangazo kama halitumiki tena / Update the details or remove this post if it is no longer active.',
+                          ),
+                          const SizedBox(height: 18),
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 12,
+                            children: <Widget>[
+                              FilledButton.tonalIcon(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) =>
+                                          MyPost(existingPost: post),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Edit post'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: () => _deletePost(context, post),
+                                icon: const Icon(Icons.delete_outline_rounded),
+                                label: const Text('Delete post'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ],
